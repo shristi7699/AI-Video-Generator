@@ -1,0 +1,11 @@
+fastapi==0.109.2
+uvicorn==0.27.1
+httpx==0.26.0
+edge-tts==6.1.9
+moviepy==1.0.3
+srt==3.5.3
+pydantic==2.6.1
+anthropic==0.19.1
+websockets==12.0
+python-dotenv==1.0.1
+aiofiles==23.2.1

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Video Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#6366f1',
+                        secondary: '#ec4899'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center p-6">
+
+    <div class="w-full max-w-4xl space-y-6">
+        <!-- Header -->
+        <header class="text-center py-8">
+            <h1 class="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
+                AI Video Generator
+            </h1>
+            <p class="text-slate-400 mt-2">Self-hosted Text-to-Video Engine</p>
+        </header>
+
+        <!-- Config Section -->
+        <section class="glass p-6 rounded-2xl border border-slate-700 shadow-xl">
+            <h2 class="text-2xl font-bold mb-4">API Configuration</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Replicate API Token (Video)</label>
+                    <input type="password" id="replicateToken" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 focus:border-primary outline-none" placeholder="r8_...">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Anthropic API Key (Script)</label>
+                    <input type="password" id="anthropicKey" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 focus:border-primary outline-none" placeholder="sk-ant-...">
+                </div>
+            </div>
+            <button onclick="saveConfig()" class="mt-4 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors">Save Keys</button>
+        </section>
+
+        <!-- Generator Section -->
+        <section class="glass p-6 rounded-2xl border border-slate-700 shadow-xl">
+            <div class="flex gap-4 mb-6 border-b border-slate-700 pb-2">
+                <button onclick="setMode('simple')" id="btn-simple" class="text-lg font-semibold text-primary border-b-2 border-primary px-2 pb-1">Simple Video</button>
+                <button onclick="setMode('creative')" id="btn-creative" class="text-lg font-semibold text-slate-400 px-2 pb-1 hover:text-white transition">Creative Mode</button>
+            </div>
+
+            <div id="simple-input" class="space-y-4">
+                <label class="block text-sm text-slate-400 mb-1">Single Video Prompt</label>
+                <textarea id="simplePrompt" rows="3" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 focus:border-primary outline-none" placeholder="A cinematic shot of a futuristic city at night..."></textarea>
+                <button onclick="generateVideo('simple')" class="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 text-white font-bold py-3 rounded-lg shadow-lg transition-all transform active:scale-95">Generate Clip</button>
+            </div>
+
+            <div id="creative-input" class="space-y-4 hidden">
+                <label class="block text-sm text-slate-400 mb-1">Video Idea (Script + TTS + Subtitles)</label>
+                <textarea id="creativeIdea" rows="4" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 focus:border-secondary outline-none" placeholder="Make a short documentary about the history of artificial intelligence..."></textarea>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-1">Number of Scenes (1-20)</label>
+                        <input type="number" id="sceneCount" min="1" max="20" value="5" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 focus:border-secondary outline-none" oninput="checkSceneWarning()">
+                        <p id="sceneWarning" class="text-xs text-yellow-500 mt-1 hidden">Zyada scenes lagenge aur zyada API cost hoga, testing ke liye pehle 2-3 scenes try karein.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-1">Duration per Scene (sec)</label>
+                        <input type="number" id="sceneDuration" min="1" max="10" value="5" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 focus:border-secondary outline-none">
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 mt-2">
+                    <input type="checkbox" id="charConsistency" checked class="w-4 h-4 text-secondary bg-slate-800 border-slate-600 rounded focus:ring-secondary focus:ring-2">
+                    <label for="charConsistency" class="text-sm text-slate-300">Keep character consistent across scenes</label>
+                </div>
+
+                <button onclick="generateVideo('creative')" class="mt-4 w-full bg-gradient-to-r from-secondary to-primary hover:opacity-90 text-white font-bold py-3 rounded-lg shadow-lg transition-all transform active:scale-95">Generate Full Video</button>
+            </div>
+        </section>
+
+        <!-- Progress Section -->
+        <section id="progressSection" class="hidden glass p-6 rounded-2xl border border-slate-700 shadow-xl">
+            <h2 class="text-xl font-bold mb-2 flex items-center justify-between">
+                <span>Generation Progress</span>
+                <span id="statusBadge" class="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded-full uppercase tracking-wider">Running</span>
+            </h2>
+            <p id="stepText" class="text-slate-400 mb-4 text-sm">Initializing...</p>
+            
+            <div class="w-full bg-slate-800 rounded-full h-4 mb-4 overflow-hidden border border-slate-600">
+                <div id="progressBar" class="bg-gradient-to-r from-primary to-secondary h-4 rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+            </div>
+
+            <div id="sceneList" class="space-y-2 mt-4 hidden">
+                <h3 class="text-sm font-semibold text-slate-300">Generated Scenes</h3>
+                <ul id="sceneUl" class="text-xs text-slate-400 space-y-1"></ul>
+            </div>
+            
+            <div id="errorText" class="hidden text-red-400 mt-4 text-sm bg-red-900/20 p-3 rounded-lg border border-red-900"></div>
+        </section>
+
+        <!-- Result Section -->
+        <section id="resultSection" class="hidden glass p-6 rounded-2xl border border-slate-700 shadow-xl flex flex-col items-center">
+            <h2 class="text-2xl font-bold mb-6 text-green-400">Video Ready!</h2>
+            <video id="finalVideo" controls class="w-full max-w-2xl rounded-lg shadow-2xl border border-slate-600 bg-black"></video>
+            <a id="downloadLink" href="#" download="generated_video.mp4" class="mt-6 bg-slate-700 hover:bg-slate-600 text-white px-6 py-2 rounded-lg transition-colors inline-flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Download Video
+            </a>
+        </section>
+
+    </div>
+
+    <script>
+        let currentMode = 'simple';
+        let ws = null;
+
+        // Fetch initial config state
+        fetch('/api/config').then(r => r.json()).then(data => {
+            if(data.replicate_configured) document.getElementById('replicateToken').placeholder = "******** (Configured)";
+            if(data.anthropic_configured) document.getElementById('anthropicKey').placeholder = "******** (Configured)";
+        });
+
+        async function saveConfig() {
+            const replicate = document.getElementById('replicateToken').value;
+            const anthropic = document.getElementById('anthropicKey').value;
+            
+            const res = await fetch('/api/config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({replicate_token: replicate, anthropic_key: anthropic})
+            });
+            if (res.ok) alert("Configuration saved!");
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            if (mode === 'simple') {
+                document.getElementById('btn-simple').className = "text-lg font-semibold text-primary border-b-2 border-primary px-2 pb-1";
+                document.getElementById('btn-creative').className = "text-lg font-semibold text-slate-400 px-2 pb-1 hover:text-white transition";
+                document.getElementById('simple-input').classList.remove('hidden');
+                document.getElementById('creative-input').classList.add('hidden');
+            } else {
+                document.getElementById('btn-creative').className = "text-lg font-semibold text-secondary border-b-2 border-secondary px-2 pb-1";
+                document.getElementById('btn-simple').className = "text-lg font-semibold text-slate-400 px-2 pb-1 hover:text-white transition";
+                document.getElementById('creative-input').classList.remove('hidden');
+                document.getElementById('simple-input').classList.add('hidden');
+            }
+        }
+
+        function checkSceneWarning() {
+            const count = parseInt(document.getElementById('sceneCount').value);
+            const warning = document.getElementById('sceneWarning');
+            if (count > 8) {
+                warning.classList.remove('hidden');
+            } else {
+                warning.classList.add('hidden');
+            }
+        }
+
+        async function generateVideo(mode) {
+            document.getElementById('progressSection').classList.remove('hidden');
+            document.getElementById('resultSection').classList.add('hidden');
+            document.getElementById('errorText').classList.add('hidden');
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('sceneList').classList.add('hidden');
+            document.getElementById('sceneUl').innerHTML = '';
+            
+            let url, body;
+            if (mode === 'simple') {
+                const prompt = document.getElementById('simplePrompt').value;
+                url = '/api/tasks/simple';
+                body = {prompt};
+            } else {
+                const idea = document.getElementById('creativeIdea').value;
+                const scene_count = parseInt(document.getElementById('sceneCount').value);
+                const duration_per_scene = parseInt(document.getElementById('sceneDuration').value);
+                const enable_character_consistency = document.getElementById('charConsistency').checked;
+                url = '/api/tasks/creative';
+                body = {
+                    idea: idea,
+                    scene_count: scene_count,
+                    duration_per_scene: duration_per_scene,
+                    enable_character_consistency: enable_character_consistency
+                };
+            }
+
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                
+                if (data.task_id) {
+                    connectWebSocket(data.task_id);
+                } else {
+                    showError("Failed to create task");
+                }
+            } catch (e) {
+                showError(e.message);
+            }
+        }
+
+        function connectWebSocket(taskId) {
+            if (ws) ws.close();
+            
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/${taskId}`;
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onmessage = (event) => {
+                const task = JSON.parse(event.data);
+                updateUI(task);
+            };
+            
+            ws.onclose = () => console.log("WebSocket disconnected");
+        }
+
+        function updateUI(task) {
+            document.getElementById('stepText').innerText = task.step;
+            document.getElementById('progressBar').style.width = `${task.progress * 100}%`;
+            
+            const badge = document.getElementById('statusBadge');
+            badge.innerText = task.status;
+            
+            if (task.scenes && task.scenes.length > 0) {
+                document.getElementById('sceneList').classList.remove('hidden');
+                const ul = document.getElementById('sceneUl');
+                ul.innerHTML = task.scenes.map(s => 
+                    `<li class="border-l-2 border-slate-600 pl-2 mb-2">
+                        <span class="text-primary font-bold">Scene ${s.id + 1}</span>: 
+                        <span class="text-slate-300">"${s.narration}"</span>
+                    </li>`
+                ).join('');
+            }
+
+            if (task.status === 'failed') {
+                badge.className = "text-xs bg-red-500/20 text-red-300 px-2 py-1 rounded-full uppercase tracking-wider";
+                showError(task.error_message);
+            } else if (task.status === 'done') {
+                badge.className = "text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded-full uppercase tracking-wider";
+                showResult(task.id);
+            }
+        }
+
+        function showError(msg) {
+            const errDiv = document.getElementById('errorText');
+            errDiv.innerText = msg;
+            errDiv.classList.remove('hidden');
+        }
+
+        function showResult(taskId) {
+            const videoUrl = `/api/video/${taskId}`;
+            const videoEl = document.getElementById('finalVideo');
+            videoEl.src = videoUrl;
+            
+            document.getElementById('downloadLink').href = videoUrl;
+            document.getElementById('resultSection').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
